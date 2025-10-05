@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "boj-coach": {
+      "command": "node",
+      "args": ["mcp-server.js"],
+      "cwd": "/Users/hanyoungwook/2025-2/Boj_coach"
+    }
+  }
+}
