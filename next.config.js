@@ -1,8 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: {
-    appDir: true,
-  },
   env: {
     SOLVED_AC_API_URL: process.env.SOLVED_AC_API_URL,
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
