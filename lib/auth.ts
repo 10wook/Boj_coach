@@ -226,7 +226,7 @@ export class AuthManager {
   revokeApiKey(apiKey: string): boolean {
     const result = this.apiKeys.delete(apiKey);
     if (result) {
-      this.logSecurityEvent('api_key_revoked', null, { apiKey });
+      this.logSecurityEvent('api_key_revoked', null, {});
     }
     return result;
   }
@@ -267,7 +267,7 @@ export class AuthManager {
   revokeMcpToken(token: string): boolean {
     const result = this.mcpTokens.delete(token);
     if (result) {
-      this.logSecurityEvent('mcp_token_revoked', null, { token: token.substring(0, 20) + '...' });
+      this.logSecurityEvent('mcp_token_revoked', null, {});
     }
     return result;
   }
