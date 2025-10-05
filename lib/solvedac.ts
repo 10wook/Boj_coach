@@ -43,7 +43,7 @@ export class SolvedacAPI {
     // Response interceptor
     this.client.interceptors.response.use(
       (response) => {
-        console.log(`Solved.ac API: ${response.config.url} - ${response.status}`);
+        console.error(`Solved.ac API: ${response.config.url} - ${response.status}`);
         return response;
       },
       async (error: AxiosError) => {
@@ -162,6 +162,10 @@ export class SolvedacAPI {
       this.handleError(error, `Failed to get all solved problems for ${username}`);
       throw error;
     }
+  }
+
+  private handleError(error: unknown, context: string): void {
+    console.error(`${context}:`, error instanceof Error ? error.message : error);
   }
 
   getTierName(tier: number): string {
