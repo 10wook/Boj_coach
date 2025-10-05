@@ -1,11 +1,12 @@
 {
   "/_not-found/page": "app/_not-found/page.js",
   "/api/health/route": "app/api/health/route.js",
+  "/api/mcp-sdk/route": "app/api/mcp-sdk/route.js",
+  "/api/mcp-server/route": "app/api/mcp-server/route.js",
+  "/api/mcp/route": "app/api/mcp/route.js",
+  "/api/user/[username]/route": "app/api/user/[username]/route.js",
   "/api/mcp/simple/route": "app/api/mcp/simple/route.js",
   "/api/test/route": "app/api/test/route.js",
   "/api/user/[username]/stats/route": "app/api/user/[username]/stats/route.js",
-  "/api/user/[username]/route": "app/api/user/[username]/route.js",
-  "/page": "app/page.js",
-  "/api/mcp/route": "app/api/mcp/route.js",
-  "/api/mcp-server/route": "app/api/mcp-server/route.js"
+  "/page": "app/page.js"
 }
