@@ -2,7 +2,7 @@
  * 백준 데이터 분석 및 통계 처리 클래스
  */
 
-import { SolvedAcAPI, SolvedAcUser, SolvedAcProblem, SolvedAcStatistics } from './solved-ac-api';
+import { SolvedAcAPI, SolvedAcUser, SolvedAcProblem } from './solved-ac-api';
 import { SolvedAcWeakness } from '../types/solved-ac';
 
 export class BojAnalyzer {
@@ -169,7 +169,7 @@ export class BojAnalyzer {
   /**
    * 추천 액션 생성
    */
-  private getRecommendedActions(statistics: SolvedAcStatistics, currentTier: number): string[] {
+  private getRecommendedActions(statistics: { totalSolved: number; tagStatistics: Record<string, number>; levelDistribution: Record<number, number> }, currentTier: number): string[] {
     const actions: string[] = [];
     
     if (statistics.totalSolved < 50) {
