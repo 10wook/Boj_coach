@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "boj-coach": {
+      "command": "npx",
+      "args": ["tsx", "/Users/hanyoungwook/2025-2/Boj_coach/mcp-server.ts"],
+      "cwd": "/Users/hanyoungwook/2025-2/Boj_coach"
+    }
+  }
+}
