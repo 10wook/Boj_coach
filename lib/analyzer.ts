@@ -384,6 +384,7 @@ export class DataAnalyzer {
       recommendations.push({
         type: 'strength_leverage',
         message: `강점 태그(${strongTags.slice(0, 2).map(t => t.tag).join(', ')})를 활용한 고난이도 문제 도전`,
+        reason: `현재 강점을 보이는 태그들을 활용하여 더 높은 난이도의 문제에 도전할 수 있습니다.`,
         priority: 'Medium'
       });
     }
@@ -392,6 +393,7 @@ export class DataAnalyzer {
       recommendations.push({
         type: 'improvement_focus',
         message: `개선 중인 태그(${improvingTags.slice(0, 2).map(t => t.tag).join(', ')}) 집중 학습`,
+        reason: `현재 개선되고 있는 태그들을 집중적으로 학습하여 실력을 더욱 향상시킬 수 있습니다.`,
         priority: 'High'
       });
     }
@@ -401,6 +403,7 @@ export class DataAnalyzer {
       recommendations.push({
         type: 'tier_advancement',
         message: `다음 티어 (${this.getTierName(userData.tier + 1)}) 도전 준비`,
+        reason: `현재 티어에서 충분한 진전을 보이고 있어 다음 티어로의 도전이 가능합니다.`,
         priority: 'High'
       });
     }
