@@ -1,12 +1,47 @@
-class DataAnalyzer {
-  calculateTagAccuracy(tagStats) {
+import { 
+  SolvedacUser, 
+  SolvedacProblemStats, 
+  SolvedacTagStats, 
+  WeaknessAnalysis, 
+  WeakTag, 
+  Recommendation,
+  ProgressAnalysis,
+  DifficultyAnalysis,
+  TimePatterns
+} from './types';
+
+interface TagAccuracy {
+  tag: string;
+  tagDisplayNames: Record<string, string>;
+  solved: number;
+  tried: number;
+  accuracy: number;
+  successRate: string;
+}
+
+interface LearningProgress {
+  overallProgress: {
+    currentTier: string;
+    solvedCount: number;
+    rating: number;
+    progressToNextTier: number;
+  };
+  strengthAreas: TagAccuracy[];
+  improvementAreas: TagAccuracy[];
+  difficultyProgression: DifficultyAnalysis;
+  activityPatterns: TimePatterns;
+  recommendations: Recommendation[];
+}
+
+export class DataAnalyzer {
+  calculateTagAccuracy(tagStats: SolvedacTagStats[]): TagAccuracy[] {
     if (!tagStats || !Array.isArray(tagStats)) {
       return [];
     }
 
     return tagStats.map(tag => ({
-      tag: tag.tag,
-      tagDisplayNames: tag.tagDisplayNames || {},
+      tag: tag.tag.key,
+      tagDisplayNames: tag.tag.displayNames || {},
       solved: tag.solved,
       tried: tag.tried,
       accuracy: tag.tried > 0 ? (tag.solved / tag.tried) : 0,
@@ -14,20 +49,20 @@ class DataAnalyzer {
     })).sort((a, b) => b.accuracy - a.accuracy);
   }
 
-  analyzeDifficultySuccess(problemStats) {
+  analyzeDifficultySuccess(problemStats: SolvedacProblemStats[]): DifficultyAnalysis {
     if (!problemStats || !Array.isArray(problemStats)) {
       return {
         byLevel: {},
         summary: {
           easiest: 'N/A',
           hardest: 'N/A',
-          averageLevel: 0,
+          averageLevel: '0',
           totalSolved: 0
         }
       };
     }
 
-    const levelGroups = {};
+    const levelGroups: Record<number, { tierName: string; solved: number; total: number }> = {};
     let totalLevel = 0;
     let totalCount = 0;
 
@@ -57,17 +92,13 @@ class DataAnalyzer {
       summary: {
         easiest: levels.length > 0 ? this.getTierName(levels[0]) : 'N/A',
         hardest: levels.length > 0 ? this.getTierName(levels[levels.length - 1]) : 'N/A',
-        averageLevel: totalCount > 0 ? (totalLevel / totalCount).toFixed(1) : 0,
+        averageLevel: totalCount > 0 ? (totalLevel / totalCount).toFixed(1) : '0',
         totalSolved: totalCount
       }
     };
   }
 
-  analyzeTimePatterns(userData) {
-    const now = new Date();
-    const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    const oneMonthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-
+  analyzeTimePatterns(userData: SolvedacUser): TimePatterns {
     return {
       dailyAverage: userData.solvedCount > 0 ? (userData.solvedCount / 365).toFixed(1) : '0.0',
       weeklyAverage: userData.solvedCount > 0 ? (userData.solvedCount / 52).toFixed(1) : '0.0',
@@ -77,7 +108,7 @@ class DataAnalyzer {
     };
   }
 
-  estimateActiveTime(solvedCount) {
+  private estimateActiveTime(solvedCount: number): string {
     if (solvedCount === 0) return '신규 사용자';
     if (solvedCount < 50) return '초급자 (< 3개월)';
     if (solvedCount < 200) return '중급자 (3-12개월)';
@@ -85,7 +116,7 @@ class DataAnalyzer {
     return '고급자 (2년+)';
   }
 
-  trackLearningProgress(userData, tagStats, problemStats) {
+  trackLearningProgress(userData: SolvedacUser, tagStats: SolvedacTagStats[], problemStats: SolvedacProblemStats[]): LearningProgress {
     const tagAccuracy = this.calculateTagAccuracy(tagStats);
     const difficultyAnalysis = this.analyzeDifficultySuccess(problemStats);
     const timePatterns = this.analyzeTimePatterns(userData);
@@ -112,7 +143,8 @@ class DataAnalyzer {
       recommendations: this.generateProgressRecommendations(strongTags, improvingTags, userData)
     };
   }
-  identifyWeakTags(tagStats) {
+
+  identifyWeakTags(tagStats: SolvedacTagStats[]): WeakTag[] {
     const tagAccuracy = this.calculateTagAccuracy(tagStats);
     
     return tagAccuracy
@@ -122,39 +154,40 @@ class DataAnalyzer {
       .map(tag => ({
         ...tag,
         severity: this.calculateWeaknessSeverity(tag.accuracy, tag.tried),
-        improvementPotential: this.calculateImprovementPotential(tag)
+        improvementPotential: this.calculateImprovementPotential(tag),
+        estimatedTime: this.estimateImprovementTime({
+          severity: this.calculateWeaknessSeverity(tag.accuracy, tag.tried)
+        })
       }));
   }
 
-  calculateWeaknessSeverity(accuracy, tried) {
+  private calculateWeaknessSeverity(accuracy: number, tried: number): 'Critical' | 'High' | 'Medium' | 'Low' {
     if (accuracy < 0.3) return 'Critical';
     if (accuracy < 0.5) return 'High';
     if (accuracy < 0.6) return 'Medium';
     return 'Low';
   }
 
-  calculateImprovementPotential(tag) {
+  private calculateImprovementPotential(tag: TagAccuracy): 'High' | 'Medium' | 'Low' {
     const baseScore = (1 - tag.accuracy) * tag.tried;
     if (baseScore > 10) return 'High';
     if (baseScore > 5) return 'Medium';
     return 'Low';
   }
 
-  analyzeDifficultyPerformance(problemStats, userData) {
+  analyzeDifficultyPerformance(problemStats: SolvedacProblemStats[], userData: SolvedacUser) {
     const difficultyAnalysis = this.analyzeDifficultySuccess(problemStats);
     const currentTier = userData.tier;
     
-    const performance = {
+    return {
       currentLevelMastery: this.calculateLevelMastery(currentTier, difficultyAnalysis.byLevel),
       readyForNextLevel: this.isReadyForNextLevel(currentTier, difficultyAnalysis.byLevel),
       strugglingLevels: this.findStrugglingLevels(difficultyAnalysis.byLevel),
       recommendation: this.generateDifficultyRecommendation(currentTier, difficultyAnalysis)
     };
-
-    return performance;
   }
 
-  calculateLevelMastery(currentTier, levelData) {
+  private calculateLevelMastery(currentTier: number, levelData: Record<number, any>): number {
     const currentLevelData = levelData[currentTier];
     if (!currentLevelData || currentLevelData.total === 0) {
       return 0;
@@ -162,13 +195,17 @@ class DataAnalyzer {
     return (currentLevelData.solved / Math.max(currentLevelData.total, 10)) * 100;
   }
 
-  isReadyForNextLevel(currentTier, levelData) {
+  private isReadyForNextLevel(currentTier: number, levelData: Record<number, any>): boolean {
     const mastery = this.calculateLevelMastery(currentTier, levelData);
     const solved = levelData[currentTier]?.solved || 0;
     return mastery >= 70 && solved >= 10;
   }
 
-  findStrugglingLevels(levelData) {
+  private findStrugglingLevels(levelData: Record<number, any>): Array<{
+    level: number;
+    tierName: string;
+    mastery: string;
+  }> {
     return Object.entries(levelData)
       .filter(([level, data]) => {
         const mastery = (data.solved / Math.max(data.total, 1)) * 100;
@@ -181,7 +218,7 @@ class DataAnalyzer {
       }));
   }
 
-  generateDifficultyRecommendation(currentTier, difficultyAnalysis) {
+  private generateDifficultyRecommendation(currentTier: number, difficultyAnalysis: DifficultyAnalysis): string {
     const mastery = this.calculateLevelMastery(currentTier, difficultyAnalysis.byLevel);
     
     if (mastery < 50) {
@@ -193,11 +230,18 @@ class DataAnalyzer {
     }
   }
 
-  calculateLearningPriority(tagStats, problemStats, userData) {
+  calculateLearningPriority(tagStats: SolvedacTagStats[], problemStats: SolvedacProblemStats[], userData: SolvedacUser) {
     const weakTags = this.identifyWeakTags(tagStats);
     const difficultyPerformance = this.analyzeDifficultyPerformance(problemStats, userData);
     
-    const priorities = [];
+    const priorities: Array<{
+      type: string;
+      priority: number;
+      tag?: string;
+      reason: string;
+      urgency: string;
+      estimatedTime: string;
+    }> = [];
 
     weakTags.forEach((tag, index) => {
       priorities.push({
@@ -223,7 +267,7 @@ class DataAnalyzer {
     return priorities.sort((a, b) => b.priority - a.priority).slice(0, 5);
   }
 
-  calculateTagPriority(tag, baseIndex) {
+  private calculateTagPriority(tag: WeakTag, baseIndex: number): number {
     let priority = 10 - baseIndex;
     
     if (tag.severity === 'Critical') priority += 3;
@@ -236,21 +280,21 @@ class DataAnalyzer {
     return Math.min(10, priority);
   }
 
-  estimateImprovementTime(tag) {
+  private estimateImprovementTime(tag: { severity: string }): string {
     if (tag.severity === 'Critical') return '3-4주';
     if (tag.severity === 'High') return '2-3주';
     if (tag.severity === 'Medium') return '1-2주';
     return '1주';
   }
 
-  predictTierAchievement(userData, tagStats, problemStats) {
+  predictTierAchievement(userData: SolvedacUser, tagStats: SolvedacTagStats[], problemStats: SolvedacProblemStats[]) {
     const currentProgress = this.calculateTierProgress(userData.rating, userData.tier);
     const weaknessCount = this.identifyWeakTags(tagStats).length;
     const difficultyPerformance = this.analyzeDifficultyPerformance(problemStats, userData);
     
     let timeEstimate = '알 수 없음';
-    let confidence = 'Low';
-    let blockers = [];
+    let confidence: 'High' | 'Medium' | 'Low' = 'Low';
+    let blockers: string[] = [];
     
     if (currentProgress >= 80 && weaknessCount <= 2 && difficultyPerformance.readyForNextLevel) {
       timeEstimate = '1-2주';
@@ -280,8 +324,8 @@ class DataAnalyzer {
     };
   }
 
-  generateTierProgressRecommendations(userData, weaknessCount, difficultyPerformance) {
-    const recommendations = [];
+  private generateTierProgressRecommendations(userData: SolvedacUser, weaknessCount: number, difficultyPerformance: any): string[] {
+    const recommendations: string[] = [];
     
     if (weaknessCount > 3) {
       recommendations.push('약점 태그 집중 학습 (주 3-4개 문제)');
@@ -300,7 +344,7 @@ class DataAnalyzer {
     return recommendations;
   }
 
-  analyzeWeakness(problemStats, tagStats) {
+  analyzeWeakness(problemStats: SolvedacProblemStats[], tagStats: SolvedacTagStats[]): WeaknessAnalysis {
     if (!problemStats || !tagStats) {
       return {
         weakestTags: [],
@@ -316,37 +360,8 @@ class DataAnalyzer {
     };
   }
 
-  analyzeProgress(userData, problemStats) {
-    if (!userData || !problemStats) {
-      return {
-        currentTier: 'Unknown',
-        nextTierGoal: 'Unknown',
-        progressToNext: 0,
-        recentPerformance: 'No data'
-      };
-    }
-
-    const currentTier = userData.tier;
-    const nextTier = Math.min(currentTier + 1, 30);
-    const progressToNext = this.calculateTierProgress(userData.rating, currentTier);
-    const difficultyAnalysis = this.analyzeDifficultySuccess(problemStats);
-    const timePatterns = this.analyzeTimePatterns(userData);
-
-    return {
-      currentTier: this.getTierName(currentTier),
-      nextTierGoal: this.getTierName(nextTier),
-      progressToNext,
-      recentPerformance: this.analyzeRecentPerformance(problemStats),
-      solvedCount: userData.solvedCount,
-      rating: userData.rating,
-      difficultyProgression: difficultyAnalysis,
-      activityPatterns: timePatterns,
-      readyForPromotion: this.isReadyForNextLevel(currentTier, difficultyAnalysis.byLevel)
-    };
-  }
-
-  generateRecommendations(weakestTags, problemStats) {
-    const recommendations = [];
+  private generateRecommendations(weakestTags: WeakTag[], problemStats: SolvedacProblemStats[]): Recommendation[] {
+    const recommendations: Recommendation[] = [];
     
     weakestTags.forEach(tag => {
       recommendations.push({
@@ -362,8 +377,8 @@ class DataAnalyzer {
     return recommendations.slice(0, 3);
   }
 
-  generateProgressRecommendations(strongTags, improvingTags, userData) {
-    const recommendations = [];
+  private generateProgressRecommendations(strongTags: TagAccuracy[], improvingTags: TagAccuracy[], userData: SolvedacUser): Recommendation[] {
+    const recommendations: Recommendation[] = [];
     
     if (strongTags.length > 0) {
       recommendations.push({
@@ -393,7 +408,38 @@ class DataAnalyzer {
     return recommendations;
   }
 
-  calculateTierProgress(rating, currentTier) {
+  analyzeProgress(userData: SolvedacUser, problemStats: SolvedacProblemStats[]): ProgressAnalysis {
+    if (!userData || !problemStats) {
+      return {
+        currentTier: 'Unknown',
+        nextTierGoal: 'Unknown',
+        progressToNext: 0,
+        recentPerformance: 'No data',
+        solvedCount: 0,
+        rating: 0
+      };
+    }
+
+    const currentTier = userData.tier;
+    const nextTier = Math.min(currentTier + 1, 30);
+    const progressToNext = this.calculateTierProgress(userData.rating, currentTier);
+    const difficultyAnalysis = this.analyzeDifficultySuccess(problemStats);
+    const timePatterns = this.analyzeTimePatterns(userData);
+
+    return {
+      currentTier: this.getTierName(currentTier),
+      nextTierGoal: this.getTierName(nextTier),
+      progressToNext,
+      recentPerformance: this.analyzeRecentPerformance(problemStats),
+      solvedCount: userData.solvedCount,
+      rating: userData.rating,
+      difficultyProgression: difficultyAnalysis,
+      activityPatterns: timePatterns,
+      readyForPromotion: this.isReadyForNextLevel(currentTier, difficultyAnalysis.byLevel)
+    };
+  }
+
+  calculateTierProgress(rating: number, currentTier: number): number {
     const tierThresholds = [
       0, 30, 60, 90, 120, 150,
       200, 300, 400, 500, 650,
@@ -410,7 +456,7 @@ class DataAnalyzer {
     return Math.max(0, Math.min(100, progress * 100));
   }
 
-  suggestDifficulty(problemStats) {
+  private suggestDifficulty(problemStats: SolvedacProblemStats[]): string {
     if (!problemStats || problemStats.length === 0) {
       return 'Bronze I - Silver V';
     }
@@ -426,7 +472,7 @@ class DataAnalyzer {
     return this.getTierName(suggestedLevel);
   }
 
-  analyzeRecentPerformance(problemStats) {
+  private analyzeRecentPerformance(problemStats: SolvedacProblemStats[]): string {
     if (!problemStats || problemStats.length === 0) {
       return 'No recent activity';
     }
@@ -434,7 +480,7 @@ class DataAnalyzer {
     return 'Active';
   }
 
-  getTierName(tier) {
+  getTierName(tier: number): string {
     const tiers = [
       'Unrated', 'Bronze V', 'Bronze IV', 'Bronze III', 'Bronze II', 'Bronze I',
       'Silver V', 'Silver IV', 'Silver III', 'Silver II', 'Silver I',
@@ -446,5 +492,3 @@ class DataAnalyzer {
     return tiers[tier] || 'Unknown';
   }
 }
-
-module.exports = DataAnalyzer;

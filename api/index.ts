@@ -1,16 +1,16 @@
-const express = require('express');
-const cors = require('cors');
-const SolvedacAPI = require('../lib/solvedac');
-const DataAnalyzer = require('../lib/analyzer');
-const CacheManager = require('../lib/cache');
-const RateLimiter = require('../lib/rateLimiter');
-const PerformanceMonitor = require('../lib/monitoring');
+import express, { Request, Response, NextFunction } from 'express';
+import cors from 'cors';
+import { SolvedacAPI } from '../lib/solvedac';
+import { DataAnalyzer } from '../lib/analyzer';
+import { CacheManager } from '../lib/cache';
+import { RateLimiter } from '../lib/rateLimiter';
+import { PerformanceMonitor } from '../lib/monitoring';
 
 const app = express();
 const cache = new CacheManager();
 const rateLimiter = new RateLimiter(
-  parseInt(process.env.RATE_LIMIT_WINDOW) || 900000,
-  parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100
+  parseInt(process.env.RATE_LIMIT_WINDOW || '900000'),
+  parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100')
 );
 const monitor = new PerformanceMonitor();
 const solvedac = new SolvedacAPI(rateLimiter);
@@ -27,7 +27,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use(rateLimiter.middleware());
 app.use(monitor.middleware());
 
-app.use((req, res, next) => {
+app.use((req: Request, res: Response, next: NextFunction) => {
   const start = Date.now();
   console.log(`${req.method} ${req.path} - ${new Date().toISOString()}`);
   
@@ -39,7 +39,7 @@ app.use((req, res, next) => {
   next();
 });
 
-app.get('/api/health', (req, res) => {
+app.get('/api/health', (req: Request, res: Response) => {
   const healthData = {
     status: 'OK',
     timestamp: new Date().toISOString(),
@@ -54,14 +54,14 @@ app.get('/api/health', (req, res) => {
   res.json(healthData);
 });
 
-app.get('/api/metrics', (req, res) => {
+app.get('/api/metrics', (req: Request, res: Response) => {
   res.json({
     success: true,
     data: monitor.getMetrics()
   });
 });
 
-app.get('/api/user/:username', async (req, res) => {
+app.get('/api/user/:username', async (req: Request, res: Response) => {
   try {
     const { username } = req.params;
     
@@ -97,14 +97,15 @@ app.get('/api/user/:username', async (req, res) => {
       }
     });
   } catch (error) {
-    res.status(error.response?.status || 500).json({
+    const err = error as any;
+    res.status(err.response?.status || 500).json({
       success: false,
-      error: error.message
+      error: err.message
     });
   }
 });
 
-app.get('/api/user/:username/problems', async (req, res) => {
+app.get('/api/user/:username/problems', async (req: Request, res: Response) => {
   try {
     const { username } = req.params;
     const problemsData = await solvedac.getUserProblems(username);
@@ -118,14 +119,15 @@ app.get('/api/user/:username/problems', async (req, res) => {
       }
     });
   } catch (error) {
-    res.status(error.response?.status || 500).json({
+    const err = error as any;
+    res.status(err.response?.status || 500).json({
       success: false,
-      error: error.message
+      error: err.message
     });
   }
 });
 
-app.get('/api/user/:username/tier', async (req, res) => {
+app.get('/api/user/:username/tier', async (req: Request, res: Response) => {
   try {
     const { username } = req.params;
     const userData = await solvedac.getUser(username);
@@ -142,14 +144,15 @@ app.get('/api/user/:username/tier', async (req, res) => {
       }
     });
   } catch (error) {
-    res.status(error.response?.status || 500).json({
+    const err = error as any;
+    res.status(err.response?.status || 500).json({
       success: false,
-      error: error.message
+      error: err.message
     });
   }
 });
 
-app.get('/api/user/:username/stats', async (req, res) => {
+app.get('/api/user/:username/stats', async (req: Request, res: Response) => {
   try {
     const { username } = req.params;
     
@@ -168,14 +171,15 @@ app.get('/api/user/:username/stats', async (req, res) => {
       data: statsData
     });
   } catch (error) {
-    res.status(error.response?.status || 500).json({
+    const err = error as any;
+    res.status(err.response?.status || 500).json({
       success: false,
-      error: error.message
+      error: err.message
     });
   }
 });
 
-app.get('/api/user/:username/tags', async (req, res) => {
+app.get('/api/user/:username/tags', async (req: Request, res: Response) => {
   try {
     const { username } = req.params;
     
@@ -194,14 +198,15 @@ app.get('/api/user/:username/tags', async (req, res) => {
       data: tagStats
     });
   } catch (error) {
-    res.status(error.response?.status || 500).json({
+    const err = error as any;
+    res.status(err.response?.status || 500).json({
       success: false,
-      error: error.message
+      error: err.message
     });
   }
 });
 
-app.get('/api/user/:username/weakness', async (req, res) => {
+app.get('/api/user/:username/weakness', async (req: Request, res: Response) => {
   try {
     const { username } = req.params;
     const [problemStats, tagStats] = await Promise.all([
@@ -216,14 +221,15 @@ app.get('/api/user/:username/weakness', async (req, res) => {
       data: analysis
     });
   } catch (error) {
-    res.status(error.response?.status || 500).json({
+    const err = error as any;
+    res.status(err.response?.status || 500).json({
       success: false,
-      error: error.message
+      error: err.message
     });
   }
 });
 
-app.get('/api/user/:username/analytics', async (req, res) => {
+app.get('/api/user/:username/analytics', async (req: Request, res: Response) => {
   try {
     const { username } = req.params;
     
@@ -261,14 +267,15 @@ app.get('/api/user/:username/analytics', async (req, res) => {
       data: analytics
     });
   } catch (error) {
-    res.status(error.response?.status || 500).json({
+    const err = error as any;
+    res.status(err.response?.status || 500).json({
       success: false,
-      error: error.message
+      error: err.message
     });
   }
 });
 
-app.get('/api/user/:username/progress', async (req, res) => {
+app.get('/api/user/:username/progress', async (req: Request, res: Response) => {
   try {
     const { username } = req.params;
     const [userData, problemStats] = await Promise.all([
@@ -283,14 +290,15 @@ app.get('/api/user/:username/progress', async (req, res) => {
       data: progress
     });
   } catch (error) {
-    res.status(error.response?.status || 500).json({
+    const err = error as any;
+    res.status(err.response?.status || 500).json({
       success: false,
-      error: error.message
+      error: err.message
     });
   }
 });
 
-app.get('/api/user/:username/recommendations', async (req, res) => {
+app.get('/api/user/:username/recommendations', async (req: Request, res: Response) => {
   try {
     const { username } = req.params;
     const [userData, problemStats, tagStats] = await Promise.all([
@@ -321,14 +329,15 @@ app.get('/api/user/:username/recommendations', async (req, res) => {
       data: recommendations
     });
   } catch (error) {
-    res.status(error.response?.status || 500).json({
+    const err = error as any;
+    res.status(err.response?.status || 500).json({
       success: false,
-      error: error.message
+      error: err.message
     });
   }
 });
 
-app.use((err, _req, res, _next) => {
+app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   console.error(err.stack);
   res.status(500).json({ 
     success: false, 
@@ -336,4 +345,4 @@ app.use((err, _req, res, _next) => {
   });
 });
 
-module.exports = app;
+export default app;

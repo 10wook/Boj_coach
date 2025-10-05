@@ -1,15 +1,20 @@
-class CacheManager {
+import { CacheItem } from './types';
+
+export class CacheManager {
+  private cache: Map<string, CacheItem<any>>;
+  private ttl: number;
+
   constructor() {
     this.cache = new Map();
-    this.ttl = parseInt(process.env.CACHE_TTL) || 300; // 5분 기본값
+    this.ttl = parseInt(process.env.CACHE_TTL || '300'); // 5분 기본값
   }
 
-  generateKey(type, params) {
+  generateKey(type: string, params: string | Record<string, any>): string {
     const paramString = typeof params === 'object' ? JSON.stringify(params) : params;
     return `${type}:${paramString}`;
   }
 
-  set(key, value, customTtl = null) {
+  set<T>(key: string, value: T, customTtl?: number): void {
     const ttl = customTtl || this.ttl;
     const expiresAt = Date.now() + (ttl * 1000);
     
@@ -23,7 +28,7 @@ class CacheManager {
     }, ttl * 1000);
   }
 
-  get(key) {
+  get<T>(key: string): T | null {
     const item = this.cache.get(key);
     
     if (!item) {
@@ -35,63 +40,61 @@ class CacheManager {
       return null;
     }
 
-    return item.value;
+    return item.value as T;
   }
 
-  delete(key) {
+  delete(key: string): boolean {
     return this.cache.delete(key);
   }
 
-  clear() {
+  clear(): void {
     this.cache.clear();
   }
 
-  getStats() {
+  getStats(): { size: number; keys: string[] } {
     return {
       size: this.cache.size,
       keys: Array.from(this.cache.keys())
     };
   }
 
-  async getUserData(username) {
+  async getUserData(username: string): Promise<any | null> {
     const key = this.generateKey('user', username);
     return this.get(key);
   }
 
-  cacheUserData(username, data, ttl = 600) {
+  cacheUserData(username: string, data: any, ttl: number = 600): void {
     const key = this.generateKey('user', username);
     this.set(key, data, ttl);
   }
 
-  async getUserStats(username) {
+  async getUserStats(username: string): Promise<any | null> {
     const key = this.generateKey('stats', username);
     return this.get(key);
   }
 
-  cacheUserStats(username, data, ttl = 300) {
+  cacheUserStats(username: string, data: any, ttl: number = 300): void {
     const key = this.generateKey('stats', username);
     this.set(key, data, ttl);
   }
 
-  async getUserTags(username) {
+  async getUserTags(username: string): Promise<any | null> {
     const key = this.generateKey('tags', username);
     return this.get(key);
   }
 
-  cacheUserTags(username, data, ttl = 600) {
+  cacheUserTags(username: string, data: any, ttl: number = 600): void {
     const key = this.generateKey('tags', username);
     this.set(key, data, ttl);
   }
 
-  async getAnalytics(username) {
+  async getAnalytics(username: string): Promise<any | null> {
     const key = this.generateKey('analytics', username);
     return this.get(key);
   }
 
-  cacheAnalytics(username, data, ttl = 900) {
+  cacheAnalytics(username: string, data: any, ttl: number = 900): void {
     const key = this.generateKey('analytics', username);
     this.set(key, data, ttl);
   }
 }
-
-module.exports = CacheManager;

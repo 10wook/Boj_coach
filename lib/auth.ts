@@ -1,7 +1,26 @@
-const crypto = require('crypto');
-const jwt = require('jsonwebtoken');
+import * as crypto from 'crypto';
+import * as jwt from 'jsonwebtoken';
+import { Request, Response, NextFunction } from 'express';
+import { ApiKeyData, McpTokenData, AuthValidation, Alert, AlertSubscriber } from './types';
 
-class AuthManager {
+declare global {
+  namespace Express {
+    interface Request {
+      auth?: {
+        clientId: string;
+        permissions: string[];
+      };
+    }
+  }
+}
+
+export class AuthManager {
+  private apiKeys: Map<string, ApiKeyData>;
+  private mcpTokens: Map<string, McpTokenData>;
+  private secretKey: string;
+  private tokenExpiry: number;
+  private rateLimits?: Map<string, number[]>;
+
   constructor() {
     this.apiKeys = new Map();
     this.mcpTokens = new Map();
@@ -9,11 +28,11 @@ class AuthManager {
     this.tokenExpiry = 24 * 60 * 60 * 1000; // 24시간
   }
 
-  generateSecret() {
+  private generateSecret(): string {
     return crypto.randomBytes(64).toString('hex');
   }
 
-  generateApiKey(clientId, permissions = ['read']) {
+  generateApiKey(clientId: string, permissions: string[] = ['read']): string {
     const apiKey = `boj_${crypto.randomBytes(20).toString('hex')}`;
     
     this.apiKeys.set(apiKey, {
@@ -27,7 +46,7 @@ class AuthManager {
     return apiKey;
   }
 
-  validateApiKey(apiKey) {
+  validateApiKey(apiKey: string): AuthValidation {
     const keyData = this.apiKeys.get(apiKey);
     
     if (!keyData) {
@@ -45,7 +64,7 @@ class AuthManager {
     };
   }
 
-  generateMcpToken(clientId, permissions = ['read', 'analyze']) {
+  generateMcpToken(clientId: string, permissions: string[] = ['read', 'analyze']): string {
     const payload = {
       clientId,
       permissions,
@@ -66,9 +85,9 @@ class AuthManager {
     return token;
   }
 
-  validateMcpToken(token) {
+  validateMcpToken(token: string): AuthValidation {
     try {
-      const decoded = jwt.verify(token, this.secretKey);
+      const decoded = jwt.verify(token, this.secretKey) as any;
       const tokenData = this.mcpTokens.get(token);
       
       if (!tokenData) {
@@ -90,33 +109,35 @@ class AuthManager {
     }
   }
 
-  hasPermission(permissions, requiredPermission) {
+  hasPermission(permissions: string[], requiredPermission: string): boolean {
     return permissions.includes(requiredPermission) || permissions.includes('admin');
   }
 
   // API 키 인증 미들웨어
   apiKeyMiddleware() {
-    return (req, res, next) => {
-      const apiKey = req.headers['x-api-key'] || req.query.api_key;
+    return (req: Request, res: Response, next: NextFunction): void => {
+      const apiKey = req.headers['x-api-key'] as string || req.query.api_key as string;
       
       if (!apiKey) {
-        return res.status(401).json({
+        res.status(401).json({
           success: false,
           error: 'API key required'
         });
+        return;
       }
 
       const validation = this.validateApiKey(apiKey);
       if (!validation.valid) {
-        return res.status(401).json({
+        res.status(401).json({
           success: false,
           error: validation.error
         });
+        return;
       }
 
       req.auth = {
-        clientId: validation.clientId,
-        permissions: validation.permissions
+        clientId: validation.clientId!,
+        permissions: validation.permissions!
       };
 
       next();
@@ -124,7 +145,7 @@ class AuthManager {
   }
 
   // MCP 토큰 인증 함수
-  authenticateMcpClient(token) {
+  authenticateMcpClient(token: string): { clientId: string; permissions: string[] } {
     const validation = this.validateMcpToken(token);
     
     if (!validation.valid) {
@@ -132,13 +153,17 @@ class AuthManager {
     }
 
     return {
-      clientId: validation.clientId,
-      permissions: validation.permissions
+      clientId: validation.clientId!,
+      permissions: validation.permissions!
     };
   }
 
   // 사용량 제한 체크
-  checkRateLimit(clientId, endpoint, limit = 100, window = 3600000) {
+  checkRateLimit(clientId: string, endpoint: string, limit: number = 100, window: number = 3600000): {
+    allowed: boolean;
+    remaining: number;
+    resetTime: number;
+  } {
     const key = `${clientId}:${endpoint}`;
     const now = Date.now();
     const windowStart = now - window;
@@ -151,7 +176,7 @@ class AuthManager {
       this.rateLimits.set(key, []);
     }
 
-    const requests = this.rateLimits.get(key);
+    const requests = this.rateLimits.get(key)!;
     const validRequests = requests.filter(timestamp => timestamp > windowStart);
     
     this.rateLimits.set(key, validRequests);
@@ -175,7 +200,12 @@ class AuthManager {
   }
 
   // 보안 감사 로그
-  logSecurityEvent(event, clientId, details = {}) {
+  logSecurityEvent(event: string, clientId: string | null, details: {
+    ip?: string;
+    userAgent?: string;
+    endpoint?: string;
+    success?: boolean;
+  } = {}): void {
     const logEntry = {
       timestamp: new Date().toISOString(),
       event,
@@ -193,7 +223,7 @@ class AuthManager {
   }
 
   // API 키 관리
-  revokeApiKey(apiKey) {
+  revokeApiKey(apiKey: string): boolean {
     const result = this.apiKeys.delete(apiKey);
     if (result) {
       this.logSecurityEvent('api_key_revoked', null, { apiKey });
@@ -201,8 +231,23 @@ class AuthManager {
     return result;
   }
 
-  listApiKeys(clientId = null) {
-    const keys = [];
+  listApiKeys(clientId?: string): Array<{
+    apiKey: string;
+    clientId: string;
+    permissions: string[];
+    createdAt: number;
+    lastUsed: number | null;
+    usageCount: number;
+  }> {
+    const keys: Array<{
+      apiKey: string;
+      clientId: string;
+      permissions: string[];
+      createdAt: number;
+      lastUsed: number | null;
+      usageCount: number;
+    }> = [];
+    
     this.apiKeys.forEach((data, key) => {
       if (!clientId || data.clientId === clientId) {
         keys.push({
@@ -219,7 +264,7 @@ class AuthManager {
   }
 
   // 토큰 관리
-  revokeMcpToken(token) {
+  revokeMcpToken(token: string): boolean {
     const result = this.mcpTokens.delete(token);
     if (result) {
       this.logSecurityEvent('mcp_token_revoked', null, { token: token.substring(0, 20) + '...' });
@@ -227,7 +272,7 @@ class AuthManager {
     return result;
   }
 
-  cleanupExpiredTokens() {
+  cleanupExpiredTokens(): number {
     const now = Date.now();
     let cleaned = 0;
 
@@ -245,7 +290,11 @@ class AuthManager {
     return cleaned;
   }
 
-  getStats() {
+  getStats(): {
+    activeApiKeys: number;
+    activeMcpTokens: number;
+    rateLimitEntries: number;
+  } {
     return {
       activeApiKeys: this.apiKeys.size,
       activeMcpTokens: this.mcpTokens.size,
@@ -253,5 +302,3 @@ class AuthManager {
     };
   }
 }
-
-module.exports = AuthManager;

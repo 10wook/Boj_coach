@@ -1,4 +1,28 @@
-class PerformanceMonitor {
+import { Request, Response, NextFunction } from 'express';
+import { PerformanceMetrics, RequestMetrics, PerformanceStats, CacheStats, ApiCallStats, MemoryStats } from './types';
+
+interface MemoryEntry {
+  timestamp: number;
+  rss: number;
+  heapTotal: number;
+  heapUsed: number;
+  external: number;
+  arrayBuffers: number;
+}
+
+export class PerformanceMonitor {
+  private metrics: {
+    requests: number;
+    errors: number;
+    responseTime: number[];
+    apiCalls: {
+      solvedac: number;
+      cache: { hits: number; misses: number };
+    };
+    memory: MemoryEntry[];
+    startTime: number;
+  };
+
   constructor() {
     this.metrics = {
       requests: 0,
@@ -15,7 +39,7 @@ class PerformanceMonitor {
     this.startMemoryMonitoring();
   }
 
-  recordRequest(duration, success = true) {
+  recordRequest(duration: number, success: boolean = true): void {
     this.metrics.requests++;
     if (!success) this.metrics.errors++;
     
@@ -27,19 +51,19 @@ class PerformanceMonitor {
     }
   }
 
-  recordSolvedacCall() {
+  recordSolvedacCall(): void {
     this.metrics.apiCalls.solvedac++;
   }
 
-  recordCacheHit() {
+  recordCacheHit(): void {
     this.metrics.apiCalls.cache.hits++;
   }
 
-  recordCacheMiss() {
+  recordCacheMiss(): void {
     this.metrics.apiCalls.cache.misses++;
   }
 
-  startMemoryMonitoring() {
+  private startMemoryMonitoring(): void {
     setInterval(() => {
       const memUsage = process.memoryUsage();
       this.metrics.memory.push({
@@ -54,7 +78,7 @@ class PerformanceMonitor {
     }, 60000); // 1분마다
   }
 
-  getMetrics() {
+  getMetrics(): PerformanceMetrics {
     const now = Date.now();
     const uptime = now - this.metrics.startTime;
     const responseTimes = this.metrics.responseTime;
@@ -77,36 +101,46 @@ class PerformanceMonitor {
 
     const currentMemory = process.memoryUsage();
 
+    const requests: RequestMetrics = {
+      total: this.metrics.requests,
+      errors: this.metrics.errors,
+      errorRate: errorRate.toFixed(2),
+      requestsPerMinute: this.metrics.requests / (uptime / 60000)
+    };
+
+    const performance: PerformanceStats = {
+      avgResponseTime: avgResponseTime.toFixed(2),
+      p95ResponseTime: p95ResponseTime.toFixed(2)
+    };
+
+    const cache: CacheStats = {
+      hitRate: cacheHitRate.toFixed(2),
+      hits: this.metrics.apiCalls.cache.hits,
+      misses: this.metrics.apiCalls.cache.misses
+    };
+
+    const apiCalls: ApiCallStats = {
+      solvedac: this.metrics.apiCalls.solvedac
+    };
+
+    const memory: MemoryStats = {
+      current: currentMemory,
+      peak: this.metrics.memory.reduce((max, curr) => 
+        curr.heapUsed > max ? curr.heapUsed : max, 0)
+    };
+
     return {
       uptime: Math.floor(uptime / 1000),
-      requests: {
-        total: this.metrics.requests,
-        errors: this.metrics.errors,
-        errorRate: errorRate.toFixed(2),
-        requestsPerMinute: this.metrics.requests / (uptime / 60000)
-      },
-      performance: {
-        avgResponseTime: avgResponseTime.toFixed(2),
-        p95ResponseTime: p95ResponseTime.toFixed(2)
-      },
-      cache: {
-        hitRate: cacheHitRate.toFixed(2),
-        hits: this.metrics.apiCalls.cache.hits,
-        misses: this.metrics.apiCalls.cache.misses
-      },
-      apiCalls: {
-        solvedac: this.metrics.apiCalls.solvedac
-      },
-      memory: {
-        current: currentMemory,
-        peak: this.metrics.memory.reduce((max, curr) => 
-          curr.heapUsed > max ? curr.heapUsed : max, 0)
-      }
+      requests,
+      performance,
+      cache,
+      apiCalls,
+      memory
     };
   }
 
   middleware() {
-    return (req, res, next) => {
+    return (req: Request, res: Response, next: NextFunction): void => {
       const startTime = Date.now();
       
       res.on('finish', () => {
@@ -119,7 +153,7 @@ class PerformanceMonitor {
     };
   }
 
-  logMetrics() {
+  logMetrics(): void {
     const metrics = this.getMetrics();
     console.log('=== Performance Metrics ===');
     console.log(`Uptime: ${metrics.uptime}s`);
@@ -131,11 +165,9 @@ class PerformanceMonitor {
     console.log('=========================');
   }
 
-  startPeriodicLogging(intervalMinutes = 15) {
+  startPeriodicLogging(intervalMinutes: number = 15): void {
     setInterval(() => {
       this.logMetrics();
     }, intervalMinutes * 60 * 1000);
   }
 }
-
-module.exports = PerformanceMonitor;
