@@ -109,6 +109,31 @@ class MCPServer {
               required: ['username'],
             },
           },
+          {
+            name: 'get_solved_problems',
+            description: '사용자가 해결한 문제 번호 목록을 조회합니다',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                username: {
+                  type: 'string',
+                  description: '백준 사용자명',
+                },
+                limit: {
+                  type: 'number',
+                  description: '표시할 문제 수 (기본값: 50, 전체: 0)',
+                  default: 50,
+                },
+                sort: {
+                  type: 'string',
+                  description: '정렬 방식 (id: 문제번호순, level: 난이도순)',
+                  enum: ['id', 'level'],
+                  default: 'id',
+                },
+              },
+              required: ['username'],
+            },
+          },
         ],
       };
     });
@@ -139,6 +164,8 @@ class MCPServer {
             return await this.handleAnalyzePerformance(args);
           case 'get_recommendations':
             return await this.handleGetRecommendations(args);
+          case 'get_solved_problems':
+            return await this.handleGetSolvedProblems(args);
           default:
             return {
               content: [
@@ -414,6 +441,104 @@ class MCPServer {
           {
             type: 'text',
             text: `❌ 사용자 '${username}'의 추천을 생성할 수 없습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  }
+
+  private async handleGetSolvedProblems(args: any) {
+    const username = args.username;
+    const limit = args.limit || 50;
+    const sort = args.sort || 'id';
+
+    if (!username) {
+      return {
+        content: [{ type: 'text', text: '❌ username 매개변수가 필요합니다.' }],
+        isError: true,
+      };
+    }
+
+    try {
+      console.error(`Fetching solved problems for ${username}...`);
+      
+      let problemIds: number[] = [];
+      
+      if (limit === 0) {
+        // 전체 문제 가져오기
+        problemIds = await this.solvedac.getAllUserSolvedProblems(username);
+      } else {
+        // 제한된 수의 문제 가져오기
+        const result = await this.solvedac.getUserSolvedProblems(username, 1, sort);
+        problemIds = result.items.slice(0, limit);
+      }
+
+      if (problemIds.length === 0) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `❌ 사용자 '${username}'이 해결한 문제를 찾을 수 없습니다.`,
+            },
+          ],
+        };
+      }
+
+      // 문제 번호를 범위별로 그룹화
+      const groups: { [key: string]: number[] } = {};
+      problemIds.forEach(id => {
+        const range = Math.floor(id / 1000) * 1000;
+        const key = `${range}~${range + 999}`;
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(id);
+      });
+
+      // 결과 포맷팅
+      let result = `🎯 **${username}님이 해결한 문제 목록**\n\n`;
+      result += `총 ${problemIds.length}개 문제 해결\n`;
+      result += `정렬: ${sort === 'id' ? '문제번호순' : '난이도순'}\n\n`;
+
+      if (limit > 0 && limit < problemIds.length) {
+        result += `📋 **최근 ${limit}개 문제 (${sort === 'id' ? '문제번호순' : '난이도순'}):**\n`;
+        const limitedIds = problemIds.slice(0, limit);
+        
+        // 10개씩 줄바꿈하여 표시
+        for (let i = 0; i < limitedIds.length; i += 10) {
+          const chunk = limitedIds.slice(i, i + 10);
+          result += chunk.join(', ') + '\n';
+        }
+      } else {
+        result += `📋 **모든 해결 문제 (범위별 정리):**\n`;
+        
+        Object.keys(groups).sort().forEach(range => {
+          const ids = groups[range].sort((a, b) => a - b);
+          result += `\n**${range}번 문제들 (${ids.length}개):**\n`;
+          
+          // 10개씩 줄바꿈하여 표시
+          for (let i = 0; i < ids.length; i += 10) {
+            const chunk = ids.slice(i, i + 10);
+            result += chunk.join(', ') + '\n';
+          }
+        });
+      }
+
+      result += `\n💡 **Tip:** 문제 보기는 https://www.acmicpc.net/problem/{문제번호} 형식으로 접속하세요!`;
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: result,
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `❌ 사용자 '${username}'의 해결 문제를 가져올 수 없습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`,
           },
         ],
         isError: true,

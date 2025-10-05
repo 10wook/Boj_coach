@@ -119,6 +119,51 @@ export class SolvedacAPI {
     }
   }
 
+  async getUserSolvedProblems(username: string, page: number = 1, sort: string = 'id'): Promise<{ count: number; items: number[] }> {
+    try {
+      const response = await this.client.get(`/search/problem?query=solved_by:${username}&sort=${sort}&page=${page}`);
+      
+      // 문제 ID만 추출
+      const problemIds = response.data.items.map((problem: any) => problem.problemId);
+      
+      return {
+        count: response.data.count,
+        items: problemIds
+      };
+    } catch (error) {
+      this.handleError(error, `Failed to get solved problems for ${username}`);
+      throw error;
+    }
+  }
+
+  async getAllUserSolvedProblems(username: string): Promise<number[]> {
+    try {
+      const allProblems: number[] = [];
+      let page = 1;
+      let hasMore = true;
+
+      while (hasMore) {
+        const result = await this.getUserSolvedProblems(username, page, 'id');
+        allProblems.push(...result.items);
+        
+        // 더 이상 가져올 문제가 없으면 중단
+        if (result.items.length === 0 || allProblems.length >= result.count) {
+          hasMore = false;
+        } else {
+          page++;
+        }
+        
+        // API 호출 제한을 위한 딜레이
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+
+      return allProblems.sort((a, b) => a - b);
+    } catch (error) {
+      this.handleError(error, `Failed to get all solved problems for ${username}`);
+      throw error;
+    }
+  }
+
   getTierName(tier: number): string {
     const tiers = [
       'Unrated', 'Bronze V', 'Bronze IV', 'Bronze III', 'Bronze II', 'Bronze I',

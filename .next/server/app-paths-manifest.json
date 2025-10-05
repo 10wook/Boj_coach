@@ -1,5 +1,1 @@
-{
-  "/api/mcp-simple/route": "app/api/mcp-simple/route.js",
-  "/api/user/[username]/route": "app/api/user/[username]/route.js",
-  "/api/user/[username]/stats/route": "app/api/user/[username]/stats/route.js"
-}
+{}
